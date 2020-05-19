@@ -9,6 +9,11 @@ function collapse() {
     port.postMessage({collapse: path});
 }
 
+function remove() {
+    var path = document.getElementById('path').value;
+    port.postMessage({remove: path});
+}
+
 function expand() {
     var path = document.getElementById('path').value;
     port.postMessage({expand: path});
@@ -25,6 +30,7 @@ function expandTree() {
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelector('#collapse').addEventListener('click', collapse);
     document.querySelector('#expand').addEventListener('click', expand);
+    document.querySelector('#remove').addEventListener('click', remove);
     document.querySelector('#collapse-tree').addEventListener('click', collapseTree);
     document.querySelector('#expand-tree').addEventListener('click', expandTree);
 });
@@ -90,6 +96,12 @@ chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
                                 "label": "Expand Diff",
                                 "action": function (obj) {
                                     port.postMessage({expand: '^' + $node.id});
+                                }
+                            },
+                            "Remove": {
+                                "label": "Remove Diff",
+                                "action": function (obj) {
+                                    port.postMessage({remove: '^' + $node.id});
                                 }
                             },
                             "Goto": {

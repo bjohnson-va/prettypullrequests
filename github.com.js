@@ -102,7 +102,7 @@ function toggleDiff(id, duration, display) {
     var $a = $(`#${id}`);
     duration = !isNaN(duration) ? duration : 200;
 
-    if ($.inArray(display, ['expand', 'collapse', 'toggle']) < 0) {
+    if ($.inArray(display, ['expand', 'collapse', 'toggle', 'remove']) < 0) {
         if (!useLocalStorage) {
             display = 'toggle';
         } else {
@@ -120,6 +120,9 @@ function toggleDiff(id, duration, display) {
             case 'expand':
                 $data.slideDown(duration);
                 return useLocalStorage ? localStorage.removeItem(uniquify(id)) : true;
+            case 'remove':
+                $span.remove();
+                return true;
             default:
                 $data.slideUp(duration);
                 return useLocalStorage ? localStorage.setItem(uniquify(id), display) : true;
@@ -134,6 +137,7 @@ function toggleDiffs(path, display) {
     $ids.each(function(index, id) {
         toggleDiff(id, 200, display);
     });
+    return $ids.length;
 }
 
 function moveToNextTab($pullRequestTabs, selectedTabIndex) {
@@ -235,11 +239,30 @@ chrome.storage.sync.get({url: '', saveCollapsedDiffs: true, tabSwitchingEnabled:
             console.assert(port.name == "pullrequest");
 
             port.onMessage.addListener(function (msg) {
+                console.log(msg);
                 if (msg.collapse !== undefined) {
                     toggleDiffs(msg.collapse, 'collapse');
                 }
                 if (msg.expand !== undefined) {
                     toggleDiffs(msg.expand, 'expand');
+                }
+                if (msg.remove !== undefined) {
+                    const startingScrollPosition = window.scrollY;
+                    const hider = document.createElement('div');
+                    hider.style.background = 'rgba(255, 255, 255, 1.0)';
+                    hider.style.position = 'fixed';
+                    hider.style.top = '0';
+                    hider.style.height = '100%';
+                    hider.style.width = '100%';
+                    hider.style.textAlign= 'center';
+                    hider.style.zIndex= `9999`;
+                    hider.style.padding = '40px';
+                    hider.style.fontSize = '4em';
+                    hider.innerHTML = `Removing ${msg.remove} diffs`;
+                    document.body.appendChild(hider);
+                    removeDiffs(msg.remove, startingScrollPosition, 0, () => {
+                        document.body.removeChild(hider);
+                    });
                 }
                 if (msg.goto !== undefined) {
                     getDiffSpans(msg.goto)[0].scrollIntoViewIfNeeded();
@@ -260,3 +283,26 @@ chrome.storage.sync.get({url: '', saveCollapsedDiffs: true, tabSwitchingEnabled:
         });
     }
 });
+
+function removeDiffs(path, initialScrollPosition, attempt, doneCallback) {
+    // GitHub lazily loads diffs
+    window.scrollTo(0,document.body.scrollHeight);
+
+    setTimeout(() => {
+        window.scrollTo(0, initialScrollPosition);
+        attempt = attempt || 0;
+        const removedCount = toggleDiffs(path, 'remove');
+        const humanAttempt = attempt + 1;
+        console.log(`Removed ${removedCount} divs on attempt #${humanAttempt}`);
+        if (removedCount > 0 && humanAttempt < 10) {
+            // GitHub seems to attempt to "re-fill" the view after removing divs
+            setTimeout(() => {
+                removeDiffs(path, initialScrollPosition, attempt + 1, doneCallback);
+            }, 0)
+        } else {
+            doneCallback();
+        }
+    }, 0);
+
+
+}
